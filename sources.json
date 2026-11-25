@@ -1,0 +1,16 @@
+{
+  "sources": [
+    {
+      "name": "IPTV-org public index",
+      "url": "https://iptv-org.github.io/iptv/index.m3u",
+      "country": "",
+      "enabled": true
+    },
+    {
+      "name": "IPTV-org Albania",
+      "url": "https://iptv-org.github.io/iptv/countries/al.m3u",
+      "country": "Shqipëri",
+      "enabled": true
+    }
+  ]
+}

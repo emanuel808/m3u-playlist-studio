@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="sq">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#101522"><title>M3U Playlist Studio</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1020;--panel:#141c2e;--line:#27334b;--muted:#9aa8bf;--green:#36d399;--blue:#60a5fa}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(140deg,#0b1020,#111b30);font:15px system-ui;color:#edf3ff}
+header{padding:25px 18px 18px;max-width:1150px;margin:auto}h1{margin:0;font-size:clamp(25px,5vw,38px)}header p{color:var(--muted);margin:8px 0}
+main{max-width:1150px;margin:auto;padding:0 16px 40px}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:12px 0}.stat,.panel{background:#141c2e;border:1px solid var(--line);border-radius:16px;padding:15px}.stat b{font-size:24px;display:block}.stat span,.muted{color:var(--muted);font-size:13px}
+.toolbar{display:flex;gap:9px;flex-wrap:wrap;margin:15px 0}.btn{border:0;border-radius:10px;padding:11px 15px;font-weight:700;background:var(--green);color:#062017;cursor:pointer}.btn.secondary{background:#263650;color:#edf3ff}.btn:disabled{opacity:.5}
+input,select{background:#0d1526;color:#fff;border:1px solid var(--line);border-radius:10px;padding:11px;min-width:0}
+.filters{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:12px}.filters input{flex:1;min-width:180px}
+table{width:100%;border-collapse:collapse;font-size:14px}th,td{text-align:left;padding:11px 8px;border-bottom:1px solid var(--line)}th{color:#9fb0ca;font-weight:600}td{overflow-wrap:anywhere}.pill{padding:4px 8px;border-radius:20px;background:#24334b;font-size:12px}
+.status{margin:10px 0;color:var(--muted);min-height:20px}.empty{text-align:center;padding:30px;color:var(--muted)}
+footer{color:var(--muted);font-size:12px;line-height:1.6;margin-top:15px}
+@media(max-width:650px){.stats{grid-template-columns:repeat(3,1fr)}.stat{padding:11px}.stat b{font-size:20px}table{font-size:12px}th,td{padding:9px 5px}.hide-mobile{display:none}}
+</style></head>
+<body>
+<header><h1>📡 M3U Playlist Studio</h1><p>Menaxho, filtro dhe krijo playlistën tënde M3U/M3U8.</p></header>
+<main>
+<div class="stats">
+ <div class="stat"><b id="total">0</b><span>Kanale në katalog</span></div>
+ <div class="stat"><b id="groups">0</b><span>Kategori</span></div>
+ <div class="stat"><b id="updated">—</b><span>Përditësimi i fundit</span></div>
+</div>
+<div class="panel">
+ <div class="toolbar">
+  <button class="btn" id="download">Shkarko playlistën M3U</button>
+  <button class="btn secondary" id="all">Zgjidh të gjitha rezultatet</button>
+  <button class="btn secondary" id="none">Hiq përzgjedhjen</button>
+  <label class="btn secondary" for="upload">Importo M3U</label><input id="upload" type="file" accept=".m3u,.m3u8" hidden>
+ </div>
+ <div class="filters">
+  <input id="search" placeholder="Kërko kanal ose shtet…">
+  <select id="group"><option value="">Të gjitha kategoritë</option></select>
+ </div>
+ <div class="status" id="status">Po ngarkohet katalogu…</div>
+ <div style="overflow:auto"><table><thead><tr><th></th><th>Kanali</th><th>Kategoria</th><th class="hide-mobile">Shteti</th><th>Statusi</th></tr></thead><tbody id="rows"></tbody></table></div>
+ <div id="empty" class="empty" hidden>Nuk u gjetën kanale. Ngarko një playlistë ose kontrollo katalogun.</div>
+</div>
+<footer>Katalogu rifreskohet nga burimet e përcaktuara në projekt. Disponueshmëria e stream-eve mund të ndryshojë. Përdor vetëm transmetime që ke të drejtë t'i shikosh ose rishpërndash. Aplikacioni nuk anashkalon pagesa, autentikim apo kontrolle aksesi.</footer>
+</main>
+<script>
+let catalog=[], selected=new Set(), imported=[];
+const $=id=>document.getElementById(id);
+function safe(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function visible(){const q=$('search').value.toLowerCase(),g=$('group').value;return catalog.filter((x,i)=>(!q||(x.name+' '+x.country+' '+x.group).toLowerCase().includes(q))&&(!g||x.group===g));}
+function render(){
+ const list=visible();$('total').textContent=catalog.length;$('groups').textContent=new Set(catalog.map(x=>x.group).filter(Boolean)).size;
+ $('rows').innerHTML=list.slice(0,1500).map(x=>`<tr><td><input type="checkbox" data-id="${safe(x.id)}" ${selected.has(x.id)?'checked':''}></td><td>${safe(x.name)}</td><td><span class="pill">${safe(x.group||'Të tjera')}</span></td><td class="hide-mobile">${safe(x.country||'—')}</td><td>${safe(x.status||'Pa kontroll')}</td></tr>`).join('');
+ $('empty').hidden=list.length!==0;
+ $('rows').querySelectorAll('input').forEach(el=>el.addEventListener('change',()=>{el.checked?selected.add(el.dataset.id):selected.delete(el.dataset.id)}));
+}
+function setCatalog(items){catalog=items.map((x,i)=>({...x,id:x.id||('c'+i)}));selected=new Set();const gs=[...new Set(catalog.map(x=>x.group).filter(Boolean))].sort();$('group').innerHTML='<option value="">Të gjitha kategoritë</option>'+gs.map(g=>`<option>${safe(g)}</option>`).join('');render();}
+async function init(){
+ try{const r=await fetch('./catalog.json?'+Date.now());if(!r.ok)throw Error();const d=await r.json();setCatalog(d.channels||[]);$('updated').textContent=d.updated_at?new Date(d.updated_at).toLocaleDateString('sq-AL'):'—';$('status').textContent=`Katalogu u ngarkua: ${catalog.length} hyrje.`}
+ catch(e){setCatalog([]);$('status').textContent='Nuk u gjet catalog.json. Mund të importosh një M3U ose të ekzekutosh përditësimin në GitHub Actions.'}
+}
+function makeM3U(items){return '#EXTM3U\n'+items.map(x=>`#EXTINF:-1${x.logo?' tvg-logo="'+x.logo.replace(/"/g,'')+'"':''} group-title="${(x.group||'Të tjera').replace(/"/g,'')}",${x.name}\n${x.url}`).join('\n')+'\n';}
+function save(name,content){const a=document.createElement('a'),u=URL.createObjectURL(new Blob([content],{type:'audio/x-mpegurl'}));a.href=u;a.download=name;a.click();URL.revokeObjectURL(u);}
+$('download').onclick=()=>{const items=catalog.filter(x=>selected.has(x.id));if(!items.length){$('status').textContent='Zgjidh të paktën një kanal.';return;}save('playlist-personale.m3u',makeM3U(items));};
+$('all').onclick=()=>{visible().forEach(x=>selected.add(x.id));render();};
+$('none').onclick=()=>{selected.clear();render();};
+$('search').oninput=render;$('group').onchange=render;
+$('upload').onchange=async e=>{const f=e.target.files[0];if(!f)return;const txt=await f.text(),lines=txt.split(/\r?\n/);let meta=null,items=[];for(const line of lines){if(line.startsWith('#EXTINF:')){const comma=line.lastIndexOf(',');meta={name:comma>=0?line.slice(comma+1).trim():'Pa emër',group:(line.match(/group-title="([^"]*)"/)||[])[1]||'Të tjera',logo:(line.match(/tvg-logo="([^"]*)"/)||[])[1]||''};}else if(line.trim()&&!line.startsWith('#')&&meta){items.push({...meta,url:line.trim(),country:'Importuar',status:'Importuar',id:'i'+items.length});meta=null;}}catalog=items;selected=new Set(items.map(x=>x.id));const gs=[...new Set(items.map(x=>x.group))];$('group').innerHTML='<option value="">Të gjitha kategoritë</option>'+gs.map(g=>`<option>${safe(g)}</option>`).join('');$('status').textContent=`U importuan ${items.length} hyrje.`;render();};
+init();
+</script></body></html>
